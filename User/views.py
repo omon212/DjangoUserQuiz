@@ -1,4 +1,4 @@
-import random, logging
+import random,logging
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.conf import settings
@@ -11,7 +11,6 @@ from .serializers import RegisterSerializer, OTPCheckSerializer, LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
 logger = logging.getLogger(__name__)
-
 
 class RegisterAPIView(APIView):
     serializer_class = RegisterSerializer
@@ -54,12 +53,7 @@ class OTPCodeCheckAPIView(APIView):
 
             try:
                 user = UserModel.objects.get(email=email, otp_code=otp_code)
-                refresh = RefreshToken.for_user(user)
-
-                return Response({
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token)
-                }, status=200)
+                return Response({'message': 'Your OTP Code has been registered'}, status=200)
             except UserModel.DoesNotExist:
                 return Response({'error': 'Invalid OTP code or email'}, status=400)
 
@@ -87,6 +81,7 @@ class LoginAPIView(APIView):
             'refresh': str(refresh),
             'access': str(refresh.access_token)
         }, status=200)
+
 
 
 class CheckAuthUser(APIView):
