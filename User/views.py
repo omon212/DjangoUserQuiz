@@ -1,4 +1,4 @@
-import random,logging
+import random, logging
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
 from django.conf import settings
@@ -12,10 +12,11 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 logger = logging.getLogger(__name__)
 
+
 class RegisterAPIView(APIView):
     serializer_class = RegisterSerializer
 
-    @swagger_auto_schema(request_body=serializer_class)
+    # @swagger_auto_schema(request_body=serializer_class)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
@@ -28,7 +29,7 @@ class RegisterAPIView(APIView):
                 password=make_password(password),
                 otp_code=otp_code
             )
-
+            print(otp_code)
             send_mail(
                 subject='Your OTP Code',
                 message=f'Your OTP code is {otp_code}',
@@ -44,26 +45,29 @@ class RegisterAPIView(APIView):
 class OTPCodeCheckAPIView(APIView):
     serializer_class = OTPCheckSerializer
 
-    @swagger_auto_schema(request_body=serializer_class)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid():
-            email = serializer.validated_data['email']
-            otp_code = serializer.validated_data['otp_code']
-
-            try:
-                user = UserModel.objects.get(email=email, otp_code=otp_code)
-                return Response({'message': 'Your OTP Code has been registered'}, status=200)
-            except UserModel.DoesNotExist:
-                return Response({'error': 'Invalid OTP code or email'}, status=400)
-
-        return Response(serializer.errors, status=400)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        otp_code = serializer.validated_data['otp_code']
+        try:
+            user = UserModel.objects.get(email=email, otp_code=otp_code)
+        except UserModel.DoesNotExist:
+            return Response({'error': 'Invalid OTP code or email'}, status=400)
+        refresh = RefreshToken.for_user(user)
+        access = refresh.access_token
+        user.otp_code = ""
+        user.save(update_fields=['otp_code'])
+        return Response({
+            'refresh': str(refresh),
+            'access': str(access)
+        }, status=200)
 
 
 class LoginAPIView(APIView):
     serializer_class = LoginSerializer
 
-    @swagger_auto_schema(request_body=serializer_class)
+    # @swagger_auto_schema(request_body=serializer_class)
     def post(self, request):
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -83,12 +87,12 @@ class LoginAPIView(APIView):
         }, status=200)
 
 
-
 class CheckAuthUser(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         user = request.user
+        print(user)
         logger.debug(f"User object: {user}")
         if user.is_authenticated:
             logger.debug("User is authenticated")
