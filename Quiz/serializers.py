@@ -2,6 +2,15 @@ from rest_framework import serializers
 from .models import Subject, Question, AnswerOption, UserQuizResult
 
 
+class AnswerSerializer(serializers.Serializer):
+    question = serializers.IntegerField()
+    answer = serializers.IntegerField()
+
+
+class SubmitQuizSerializer(serializers.Serializer):
+    answers = serializers.ListSerializer(child=AnswerSerializer())
+
+
 class AnswerOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnswerOption

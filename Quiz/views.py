@@ -2,8 +2,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
-from .models import Subject, Question, UserQuizResult,AnswerOption
-from .serializers import SubjectSerializer, QuestionSerializer
+from .models import Subject, Question, UserQuizResult, AnswerOption
+from .serializers import SubjectSerializer, QuestionSerializer, SubmitQuizSerializer
 import random
 
 
@@ -33,10 +33,9 @@ class QuizQuestionsAPIView(APIView):
         return Response(serializer.data, status=200)
 
 
-
-
 class SubmitQuizAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = SubmitQuizSerializer
 
     def post(self, request, subject_id):
         try:
@@ -44,16 +43,16 @@ class SubmitQuizAPIView(APIView):
         except Subject.DoesNotExist:
             return Response({"error": "Fan topilmadi"}, status=404)
 
-        answers = request.data.get("answers")
-        if not answers or not isinstance(answers, list):
-            return Response({"error": "Javoblar yuborilmadi"}, status=400)
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        answers = serializer.validated_data['answers']
         score = 0
 
         for ans in answers:
             try:
-                question = Question.objects.get(id=ans.get("question"))
-                option = AnswerOption.objects.get(id=ans.get("answer"), question=question)
+                question = Question.objects.get(id=ans["question"])
+                option = AnswerOption.objects.get(id=ans["answer"], question=question)
 
                 if option.text.strip().lower() == question.correct_answer.strip().lower():
                     score += 1
