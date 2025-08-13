@@ -37,7 +37,7 @@ schema_view = get_schema_view(
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('user/', include('User.urls')),
-    path('',include('Quiz.urls')),
+    path('quiz/',include('Quiz.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     # path('', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
