@@ -1,16 +1,22 @@
-import random, logging
+import random, logging, redis
 from django.contrib.auth.hashers import check_password, make_password
 from django.core.mail import send_mail
-from django.conf import settings
-from drf_yasg.utils import swagger_auto_schema
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import UserModel
 from .serializers import RegisterSerializer, OTPCheckSerializer, LoginSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+r = redis.StrictRedis(
+    host='localhost',
+    port=6379,
+    db=0,
+    decode_responses=True
+)
 
 
 class RegisterAPIView(APIView):
@@ -50,18 +56,44 @@ class OTPCodeCheckAPIView(APIView):
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         otp_code = serializer.validated_data['otp_code']
+        ip = self.get_client_ip(request)
+        attempts_key = f"otp_attempts:{ip}:{email}"
+        block_key = f"otp_block:{ip}:{email}"
+        if r.exists(block_key):
+            ttl = r.ttl(block_key) // 60
+            return Response({'error': f'Too many attempts. Try again in {ttl} minutes.'},
+                            status=403)
         try:
-            user = UserModel.objects.get(email=email, otp_code=otp_code)
+            user = UserModel.objects.get(email=email)
         except UserModel.DoesNotExist:
-            return Response({'error': 'Invalid OTP code or email'}, status=400)
+            return Response({'error': 'Invalid email'}, status=400)
+        if user.otp_code != otp_code:
+            attempts = r.incr(attempts_key)
+            r.expire(attempts_key, 3600)
+
+            if attempts >= 3:
+                r.set(block_key, "1", ex=3600)
+                return Response({'error': 'Too many wrong attempts. Locked for 1 hour.'},
+                                status=403)
+            return Response({'error': 'Invalid OTP code'}, status=400)
         refresh = RefreshToken.for_user(user)
         access = refresh.access_token
+        r.delete(attempts_key)
+        r.delete(block_key)
         user.otp_code = ""
         user.save(update_fields=['otp_code'])
         return Response({
             'refresh': str(refresh),
             'access': str(access)
         }, status=200)
+
+    def get_client_ip(self, request):
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
 
 
 class LoginAPIView(APIView):
